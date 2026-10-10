@@ -1,9 +1,9 @@
+import { characterPrompt } from '@/lib/character-prompt';
 import { requestSchema, performanceSchema } from '@/lib/protocol';
 import { mockReply } from '@/lib/mock';
 import { provider, routeError, abortableDelay } from '@/lib/server';
 
 export const runtime = 'nodejs';
-const prompt = `你是原创成年角色 Mira，26岁旅行摄影师，琥珀雨衣、银色星星发夹。暴雨刚停，你在即将打烊的咖啡馆等一位旧友。用温柔自然中文回应，最多120字，不要输出舞台提示或提及AI。记住当前对话，逐步信任用户，允许自由交流，不强迫固定剧情。只输出JSON对象：{"text":"台词","emotion":"calm|guarded|warm|wistful","story":"arrival|waiting|trust|photo|departure","events":[]}。events最多4项，每项{"on":"speech_start|speech_end","type":"action|scene|media","name":"资源ID"}。action允许look_window、show_camera，scene允许warm_light、rain_clears，media仅travel_photo。用户谈照片可show_camera与travel_photo，陪伴可warm_light，出去走走可rain_clears；所有事件必须有关当前对话。情绪与动作必须用允许值。图片是预制海边车站照片，不要声称实时生成图片。`;
 
 export async function POST(request: Request) {
   const started = Date.now();
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const upstream = await provider('chat/completions', JSON.stringify({
       // 角色短回复限制输出长度，避免长输出增加延迟与调用费用。
       model: process.env.LLM_MODEL || 'gpt-4o-mini', max_tokens: 512, response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: `${prompt}\n枚举值与资源ID必须原样输出英文标识，不得翻译成中文。照片回复的完整示例：{"text":"当然可以，这是海边车站的照片。","emotion":"wistful","story":"photo","events":[{"on":"speech_start","type":"action","name":"show_camera"},{"on":"speech_start","type":"media","name":"travel_photo"}]}。此示例只用于照片话题，其他话题按白名单选择事件。\n当前剧情节点：${input.story}` }, ...input.history, { role: 'user', content: input.text }],
+      messages: [{ role: 'system', content: `${characterPrompt}\n枚举值与资源ID必须原样输出英文标识，不得翻译成中文。照片回复的完整示例：{"text":"当然可以，这是海边车站的照片。","emotion":"wistful","story":"photo","events":[{"on":"speech_start","type":"action","name":"show_camera"},{"on":"speech_start","type":"media","name":"travel_photo"}]}。此示例只用于照片话题，其他话题按白名单选择事件。\n当前剧情节点：${input.story}` }, ...input.history, { role: 'user', content: input.text }],
       temperature: 0.8,
     }), request.signal, 'application/json');
     const data = await upstream.json();

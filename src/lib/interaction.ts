@@ -1,6 +1,6 @@
 import { responseSchema, type Fault, type History, type SceneEvent, type TurnReply, type TurnRequest } from './protocol';
 import { TurnGate, type Ticket } from './turn-gate';
-import type { SceneState } from '../stores/scene-store';
+import type { DialogueEntry, SceneState } from '../stores/scene-store';
 
 export type InteractionDependencies = {
   transcribe: (blob: Blob, signal: AbortSignal) => Promise<string>;
@@ -15,7 +15,19 @@ export class InteractionEngine {
   readonly gate = new TurnGate();
   private history: History = [];
   private interruptedSpeech = false;
+  private transcript: DialogueEntry[] = [];
+  private activeTurn: number | null = null;
   constructor(private deps: InteractionDependencies) {}
+
+  private entry(turnId: number, role: DialogueEntry['role'], text: string) {
+    this.transcript = [...this.transcript.slice(-99), { id: `${turnId}-${role}`, turnId, role, text, status: 'pending', time: new Date().toLocaleTimeString('zh-CN', { hour12: false }) }];
+    this.deps.patch({ transcript: this.transcript });
+  }
+  private mark(turnId: number | null, status: DialogueEntry['status']) {
+    if (turnId === null) return;
+    this.transcript = this.transcript.map(entry => entry.turnId === turnId && entry.status === 'pending' ? { ...entry, status } : entry);
+    this.deps.patch({ transcript: this.transcript });
+  }
 
   beginListening(): Ticket {
     const ticket = this.begin();
@@ -25,6 +37,8 @@ export class InteractionEngine {
   }
   private begin() {
     const ticket = this.gate.begin();
+    // 展示记录与模型上下文分开：保留原台词供回看，同时明确标记未完整播放。
+    this.mark(this.activeTurn, 'interrupted'); this.activeTurn = null;
     // 被打断的回复只记录中断标记，避免模型误以为用户听完了整段台词。
     if (this.interruptedSpeech) this.history.push({ role: 'assistant', content: '（上一轮回复被用户打断，未完整播放。）' });
     this.interruptedSpeech = false;
@@ -34,12 +48,13 @@ export class InteractionEngine {
   }
   cancel() {
     this.gate.invalidate();
+    this.mark(this.activeTurn, 'interrupted'); this.activeTurn = null;
     // 被打断的回复只记录中断标记，避免模型误以为用户听完了整段台词。
     if (this.interruptedSpeech) this.history.push({ role: 'assistant', content: '（上一轮回复被用户打断，未完整播放。）' });
     this.interruptedSpeech = false;
     this.deps.patch({ phase: 'idle', subtitle: '', media: false, action: 'idle', notice: '已停止。你可以继续说话。' });
   }
-  reset() { this.gate.invalidate(); this.history = []; this.interruptedSpeech = false; }
+  reset() { this.cancel(); this.history = []; this.transcript = []; this.activeTurn = null; this.interruptedSpeech = false; this.deps.patch({ transcript: [] }); }
 
   async submitRecording(blob: Blob, mode: 'mock' | 'live', fault: Fault, ticket: Ticket, onTranscript?: (text: string) => void): Promise<string | undefined> {
     if (!this.gate.isCurrent(ticket)) return;
@@ -84,6 +99,8 @@ export class InteractionEngine {
     if (!text) return;
     const ticket = listeningTicket || this.begin();
     if (!this.gate.isCurrent(ticket)) return;
+    this.activeTurn = ticket.id;
+    this.entry(ticket.id, 'user', text);
     // 限制上下文长度，避免连续交流时请求体和模型输入无限增长。
     const previousHistory = this.history.slice(-14);
     this.history = [...previousHistory, { role: 'user', content: text }];
@@ -101,6 +118,7 @@ export class InteractionEngine {
       if (!this.gate.isCurrent(ticket)) return;
       this.deps.patch({ phase: 'idle', error: error instanceof Error ? error.message : '回复失败，请重试。', notice: '' });
       this.deps.trace(ticket.id, '模型失败 / 可重试');
+      this.mark(ticket.id, 'failed'); this.activeTurn = null;
       return;
     }
     let hasStarted = false;
@@ -108,6 +126,7 @@ export class InteractionEngine {
     const start = () => {
       if (!this.gate.isCurrent(ticket) || hasStarted) return;
       hasStarted = true;
+      this.entry(ticket.id, 'assistant', reply.text);
       this.interruptedSpeech = true;
       this.deps.patch({ phase: 'speaking', subtitle: reply.text, emotion: reply.emotion, story: reply.story, notice: '', latency: Math.round(performance.now() - started) });
       this.deps.trace(ticket.id, '语音开始 / 字幕与演出发布');
@@ -127,6 +146,7 @@ export class InteractionEngine {
     }
     if (!this.gate.isCurrent(ticket)) return;
     this.interruptedSpeech = false;
+    this.mark(ticket.id, 'complete'); this.activeTurn = null;
     this.history.push({ role: 'assistant', content: reply.text });
     this.history = this.history.slice(-14);
     // 只有未被打断的有效轮次才能触发播放结束后的场景事件。

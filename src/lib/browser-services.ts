@@ -1,6 +1,7 @@
 import type { Fault, TurnReply, TurnRequest } from './protocol';
 import { mockReply } from './mock';
 import { assetPath, staticPreview } from './preview';
+import { customRespond, customSpeech, customTranscribe, getCustomConfig } from './custom-services';
 
 async function checked(response: Response) {
   if (!response.ok) {
@@ -10,6 +11,8 @@ async function checked(response: Response) {
   return response;
 }
 export async function respond(input: TurnRequest, signal: AbortSignal) {
+  const config = getCustomConfig();
+  if (input.mode === 'live' && config) return customRespond(config, input, signal);
   // GitHub Pages 没有后端，演示延迟仍监听取消，避免旧回复覆盖新轮。
   if (staticPreview) {
     if (input.mode !== 'mock') throw new Error('静态预览仅提供演示对话。');
@@ -27,6 +30,8 @@ export async function respond(input: TurnRequest, signal: AbortSignal) {
   return response.json();
 }
 export async function transcribe(blob: Blob, signal: AbortSignal) {
+  const config = getCustomConfig();
+  if (config) return customTranscribe(config, blob, signal);
   if (staticPreview) throw new Error('GitHub 静态预览不提供语音识别后端。请使用文字或模拟语音输入，实际录音请在本地配置服务后体验。');
   const form = new FormData();
   // 根据浏览器实际录音格式设置扩展名，不把 Safari 的 MP4 当成 WebM 上传。
@@ -46,8 +51,8 @@ export async function speak(reply: TurnReply, mode: 'mock' | 'live', fault: Faul
     // 演示回复使用随项目交付的语音文件，不依赖在线语音合成服务。
     url = assetPath(`/audio/${reply.audioId || 'greeting'}.wav`);
   } else {
-    const response = await checked(await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: reply.text }), signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]) }));
-    const blob = await response.blob();
+    const config = getCustomConfig();
+    const blob = config ? await customSpeech(config, reply.text, signal) : await checked(await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: reply.text }), signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]) })).then(response => response.blob());
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     url = URL.createObjectURL(blob);
     objectUrl = true;

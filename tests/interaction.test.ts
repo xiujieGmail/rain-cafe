@@ -12,7 +12,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 function setup(overrides: Partial<InteractionDependencies> = {}) {
-  const state: SceneState = { phase: 'idle', emotion: 'calm', action: 'idle', scene: 'rain', story: 'arrival', subtitle: '', userText: '', notice: '', error: '', media: false, mediaFailed: false, latency: null, turnId: 0 };
+  const state: SceneState = { transcript: [], phase: 'idle', emotion: 'calm', action: 'idle', scene: 'rain', story: 'arrival', subtitle: '', userText: '', notice: '', error: '', media: false, mediaFailed: false, latency: null, turnId: 0 };
   const trace = vi.fn();
   const speak = vi.fn(async (_reply: TurnReply, _mode, _fault, _signal, onStart: () => void) => { onStart(); });
   const engine = new InteractionEngine({
@@ -205,5 +205,35 @@ describe('continuous scene and recovery', () => {
 
   it('does not permit a model to smuggle a media resource into a scene event', () => {
     expect(performanceSchema.safeParse({ text: '你好', emotion: 'calm', story: 'arrival', events: [{ on: 'speech_start', type: 'scene', name: 'travel_photo' }] }).success).toBe(false);
+  });
+});
+
+describe('visible dialogue history', () => {
+  it('preserves multiple rounds separately from the bounded model context and clears on reset', async () => {
+    const { engine, state } = setup();
+    await engine.submit('你好', 'mock'); await engine.submit('照片', 'mock');
+    expect(state.transcript.map(entry => entry.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    expect(state.transcript.every(entry => entry.status === 'complete')).toBe(true);
+    engine.reset(); expect(state.transcript).toEqual([]);
+  });
+  it('marks interrupted speech without admitting late replies or clearing earlier text', async () => {
+    const oldPlayback = deferred<void>();
+    const { engine, state } = setup({ speak: async (_reply, _mode, _fault, signal, start) => {
+      start(); if (!signal.aborted) await oldPlayback.promise;
+    } });
+    const pending = engine.submit('照片', 'mock');
+    await vi.waitFor(() => expect(state.phase).toBe('speaking'));
+    engine.beginListening();
+    expect(state.transcript).toHaveLength(2);
+    expect(state.transcript[1].text).toContain('照片'); expect(state.transcript[1].status).toBe('interrupted');
+    oldPlayback.resolve(); await pending;
+    expect(state.transcript[1].status).toBe('interrupted'); expect(state.phase).toBe('listening');
+  });
+  it('records failures and bounds the displayed history', async () => {
+    const failed = setup({ respond: async () => { throw new Error('test failure'); } });
+    await failed.engine.submit('你好', 'live'); expect(failed.state.transcript[0].status).toBe('failed');
+    const { engine, state } = setup();
+    for (let i=0;i<60;i++) await engine.submit(`你好${i}`, 'mock');
+    expect(state.transcript).toHaveLength(100); expect(state.transcript.at(-1)?.status).toBe('complete');
   });
 });

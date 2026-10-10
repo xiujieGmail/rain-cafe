@@ -174,3 +174,25 @@ button { transition: background .2s, border-color .2s, transform .2s; }button:ac
 }
 @media (max-height: 730px) and (max-width: 700px) { .story-intro h1 { font-size: 22px; }.travel-photo { top: 35%; width: 140px; } }
 @media (max-width: 700px) { .experience:has(.travel-photo) .character-caption { visibility: hidden; } }
+
+/* 对话记录默认折叠，保留场景主体；展开后独立滚动，不把输入区推出窗口。 */
+.dialogue-history { margin: 8px 0; border-top: 1px solid #e8bf8e25; color: var(--cream); }
+.dialogue-history summary { display: flex; gap: 8px; align-items: center; padding: 8px 0; cursor: pointer; font-size: 11px; color: var(--muted); }
+.dialogue-history summary span { margin-left: auto; }
+.history-scroll { max-height: min(24vh, 180px); overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px; border-radius: 10px; background: #102032e8; }
+.history-entry { padding: 10px 4px; border-bottom: 1px solid #e8bf8e15; }
+.history-entry header { display: flex; align-items: center; gap: 9px; font-size: 11px; }
+.history-entry time, .history-entry small { color: var(--muted); font-size: 9px; }
+.history-entry small { margin-left: auto; }
+.history-entry p { margin: 7px 0 0; font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-user strong { color: #a3cbd9; }.history-assistant strong { color: var(--gold); }
+.typing-cursor { font-size: 12px; color: var(--gold); }.typing-cursor.done { visibility: hidden; }
+.provider-settings { margin: 18px 0; padding: 12px; border: 1px solid #e8bf8e30; border-radius: 12px; }
+.provider-settings summary { cursor: pointer; font-size: 13px; }.provider-settings summary span { float: right; color: var(--gold); font-size: 10px; }
+.provider-settings h3 { margin: 20px 0 10px; font-size: 13px; color: var(--gold); }
+.provider-field { display: block; margin: 12px 0; font-size: 11px; }.provider-field span { display: block; margin-bottom: 6px; }
+.provider-field input { width: 100%; border: 1px solid #e8bf8e35; border-radius: 8px; padding: 10px; background: #152638; color: var(--cream); font: inherit; }
+.provider-field input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.provider-toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; line-height: 1.6; }
+.provider-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }.provider-actions button { border: 1px solid #e8bf8e50; border-radius: 8px; background: #e8bf8e15; padding: 9px; font-size: 11px; }
+@media (max-width: 700px) { .history-scroll { max-height: 120px; }.provider-field input { font-size: 16px; } }

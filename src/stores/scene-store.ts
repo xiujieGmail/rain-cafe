@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Action, Emotion, Phase, Scene, Story } from '@/lib/protocol';
 
 export type SceneState = {
+  transcript: DialogueEntry[];
   phase: Phase;
   emotion: Emotion;
   action: Action;
@@ -17,10 +18,12 @@ export type SceneState = {
   turnId: number;
 };
 export const initialScene: SceneState = {
+  transcript: [],
   phase: 'idle', emotion: 'calm', action: 'idle', scene: 'rain', story: 'arrival',
   subtitle: '雨刚停。她抬起眼，望向窗边的你。', userText: '',
   notice: '', error: '', media: false, mediaFailed: false, latency: null, turnId: 0,
 };
+export type DialogueEntry = { id: string; turnId: number; role: 'user' | 'assistant'; text: string; status: 'pending' | 'complete' | 'interrupted' | 'failed'; time: string };
 export type Trace = { id: number; time: string; turnId: number; stage: string };
 type Store = SceneState & { traces: Trace[]; patch: (value: Partial<SceneState>) => void; trace: (turnId: number, stage: string) => void; reset: () => void };
 export const useSceneStore = create<Store>((set) => ({

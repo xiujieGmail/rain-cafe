@@ -3,6 +3,9 @@ import { assetPath, staticPreview } from '@/lib/preview';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowUp, Mic, Square, RotateCcw, SlidersHorizontal, X, ChevronRight, Headphones, Sparkles, MessageCircle, Radio, Activity } from 'lucide-react';
 import { SceneStage } from './scene-stage';
+import { ServiceSettings } from './service-settings';
+import { Typewriter } from './typewriter';
+import { setCustomConfig, type CustomConfig } from '@/lib/custom-services';
 import { useSceneStore } from '@/stores/scene-store';
 import { InteractionEngine } from '@/lib/interaction';
 import { respond, speak, record, transcribe, type Recording } from '@/lib/browser-services';
@@ -19,6 +22,7 @@ export function CafeExperience() {
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'mock' | 'live'>('mock');
   const [liveAvailable, setLiveAvailable] = useState(false);
+  const [customEnabled, setCustomEnabled] = useState(false);
   const [settings, setSettings] = useState(false);
   const [fault, setFault] = useState<Fault>('none');
   const [picker, setPicker] = useState(false);
@@ -69,7 +73,7 @@ export function CafeExperience() {
     const trap = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setSettings(false); return; }
       if (event.key !== 'Tab') return;
-      const items = [...(drawerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), summary, a[href]') || [])];
+      const items = [...(drawerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, a[href], audio[controls]') || [])].filter(item => item.getClientRects().length > 0);
       const first = items[0], last = items.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -169,6 +173,11 @@ export function CafeExperience() {
     engine.reset(); stopRecordingUI(); useSceneStore.getState().reset(); setInput(''); setFault('none'); lastInput.current = ''; setRecordingUrl(''); setRecordingInfo(null);
   }
   function changeMode(next: 'mock' | 'live') { restart(); setMode(next); }
+  function applyConfig(config: CustomConfig | null) {
+    // 配置切换先取消旧请求与播放；新轮只使用新配置，保留已有展示记录。
+    engine.cancel(); stopRecordingUI(); setCustomConfig(config); setCustomEnabled(config !== null);
+    setMode(config ? 'live' : 'mock'); setFault('none');
+  }
 
   return <main className="experience" data-phase={state.phase} data-turn={state.turnId}>
     <SceneStage />
@@ -180,8 +189,9 @@ export function CafeExperience() {
     <div className="character-caption"><span className="tiny-star">✦</span><span>Mira<small>26 岁 · 旅行摄影师</small></span></div>
     <section className="conversation" aria-label="与 Mira 交流">
       <div className={`status-line status-${state.phase}`}><span className="status-orb"><i /><i /><i /></span><span data-testid="phase-label">{phaseNames[state.phase]}</span><span className="status-copy">{phaseCopy[state.phase]}</span>{state.phase === 'speaking' ? <button className="inline-stop" onClick={() => { engine.cancel(); stopRecordingUI(); }}><Square size={11} />停止</button> : null}</div>
-      <div className="subtitle-area" aria-live="polite" aria-atomic="true"><span className="speaker-label">MIRA</span><p data-testid="subtitle">{state.subtitle || (state.phase === 'listening' ? '“ 我在听。 ”' : state.phase === 'thinking' ? '窗外的雨声，填满了片刻的安静。' : '你可以继续这个故事。')}</p></div>
+      <div className="subtitle-area" aria-live="polite" aria-atomic="true"><span className="speaker-label">MIRA</span><p data-testid="subtitle">{state.subtitle ? <Typewriter key={state.turnId} text={state.subtitle} /> : (state.phase === 'listening' ? '“ 我在听。 ”' : state.phase === 'thinking' ? '窗外的雨声，填满了片刻的安静。' : '你可以继续这个故事。')}</p></div>
       {state.userText ? <p className="your-line"><span>你</span>{state.userText}</p> : null}
+      <details className="dialogue-history"><summary><MessageCircle size={13} />查看对话记录 <span>{state.transcript.length}</span></summary><div className="history-scroll" role="log" aria-label="本次对话记录">{state.transcript.length ? state.transcript.map(entry => <article key={entry.id} className={`history-entry history-${entry.role}`}><header><strong>{entry.role === 'user' ? '你' : 'Mira'}</strong><time>{entry.time}</time><small>{({ pending: '进行中', complete: '完成', interrupted: '已打断', failed: '回复失败' })[entry.status]}</small></header><p>{entry.text}</p></article>) : <p className="setting-note">还没有对话。仅在本页保留最近 100 条，重新开始或刷新后清空。</p>}</div></details>
       {recordingReady ? <div className="microphone-level" role="status"><span className="level-track"><span style={{ width: `${Math.round(inputLevel * 100)}%` }} /></span><span>{inputLevel > 0.01 ? '已检测到声音' : '等待声音，请检查麦克风'}</span></div> : null}
       {state.error ? <div className="feedback error" role="alert"><span>{state.error}</span>{lastInput.current ? <button onClick={() => send(lastInput.current)}>重试<ChevronRight size={13} /></button> : null}</div> : state.notice ? <p className="feedback" role="status">{state.notice}</p> : null}
       {picker ? <div className="voice-picker" aria-label="模拟语音转写"><div><Radio size={15} /><span>选择模拟转写</span><button className="icon-button" aria-label="取消模拟输入" onClick={() => { engine.cancel(); stopRecordingUI(); }}><X size={16} /></button></div>{mockPrompts.map(prompt => <button key={prompt} onClick={() => { const ticket = listeningRef.current; if (ticket) send(prompt, ticket); }}>{prompt}<ChevronRight size={14} /></button>)}</div> : null}
@@ -199,9 +209,10 @@ export function CafeExperience() {
     {settings ? <div className="drawer-backdrop" onClick={() => setSettings(false)}><section ref={drawerRef} className="settings-drawer" role="dialog" aria-modal="true" aria-label="体验设置" onClick={event => event.stopPropagation()}>
       <div className="drawer-header"><div><p className="eyebrow">EXPERIENCE</p><h2>体验设置</h2></div><button className="icon-button" onClick={() => setSettings(false)} aria-label="关闭体验设置" autoFocus><X size={21} /></button></div>
       <p className="settings-copy">这是一段可以被你打断、也可以慢慢继续的故事。</p>
-      <label className="setting-label" htmlFor="mode">对话模式</label><select id="mode" value={mode} onChange={event => changeMode(event.target.value as 'mock' | 'live')}><option value="mock">本地演示 · 剧情与预录语音</option><option value="live" disabled={!liveAvailable}>真实服务{liveAvailable ? ' · 已配置' : ' · 尚未配置密钥'}</option></select>
-      <p className="setting-note">{staticPreview ? 'GitHub Pages 在线演示：支持文字、模拟语音输入、预录语音与角色演出。实际录音识别和真实模型对话需要本地后端配置服务。' : mode === 'mock' ? '使用预录中文语音和剧情规则。结束录音后自动上传至语音识别服务，识别完成后继续对话。录音不会保存到本地服务器磁盘。实际录音需要配置语音识别服务；模拟输入无需配置。' : '录音与对话会发送到服务端配置的模型服务。点击麦克风开始或结束录音。'}</p>
-      {!staticPreview ? <><label className="setting-label" htmlFor="microphone-device">麦克风输入</label><select id="microphone-device" value={microphoneId} disabled={recordingReady} onChange={event => setMicrophoneId(event.target.value)}><option value="">系统默认麦克风</option>{microphones.filter(device => device.deviceId && device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `麦克风 ${index + 1}`}</option>)}</select><p className="setting-note">当前采集设备：{microphoneName}。授权后显示设备名称；若音量条没有变化，请选择内置麦克风或实际使用的耳机麦克风。</p></> : null}
+      <label className="setting-label" htmlFor="mode">对话模式</label><select id="mode" value={mode} onChange={event => changeMode(event.target.value as 'mock' | 'live')}><option value="mock">演示 · 剧情与预录语音</option><option value="live" disabled={!liveAvailable && !customEnabled}>真实服务{customEnabled ? ' · 自定义服务' : liveAvailable ? ' · 服务端已配置' : ' · 请先配置'}</option></select>
+      <p className="setting-note">{customEnabled ? '已启用自定义服务：录音与对话直接发送至你设置的平台，不经过项目服务器。' : staticPreview ? '在线演示默认使用 Mock；展开自定义 AI 服务并填写配置后，即可体验真实对话与语音。' : mode === 'mock' ? '使用预录语音与剧情规则；实际录音需要 STT 服务。' : '使用服务端 .env.local 配置的模型服务。'}</p>
+      <ServiceSettings enabled={customEnabled} onApply={applyConfig} />
+      <label className="setting-label" htmlFor="microphone-device">麦克风输入</label><select id="microphone-device" value={microphoneId} disabled={recordingReady} onChange={event => setMicrophoneId(event.target.value)}><option value="">系统默认麦克风</option>{microphones.filter(device => device.deviceId && device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `麦克风 ${index + 1}`}</option>)}</select><p className="setting-note">当前采集设备：{microphoneName}。授权后显示设备名称；若音量条没有变化，请选择内置麦克风或实际使用的耳机麦克风。</p>
       {recordingUrl && !recordingReady ? <div className="recording-preview"><p className="setting-label">回放本次录音</p><audio controls src={recordingUrl} onPlay={() => { engine.cancel(); stopRecordingUI(); }} aria-label="回放本次麦克风录音" /><p className="setting-note">{recordingInfo ? `${recordingInfo.duration.toFixed(1)} 秒 · ${recordingInfo.silent ? '未采集到声音' : recordingInfo.quiet ? '声音偏小，请靠近麦克风' : '已采集到声音'}。` : ''}仅临时保存在当前页面内存中，下一次录音或离开页面时清除。</p></div> : null}
       <div className="setting-rule" />
       <div className="setting-label"><Sparkles size={15} />演示一次故障</div><p className="setting-note">仅影响下一轮本地演示，提交后自动恢复正常。</p><select aria-label="下一轮故障模拟" value={fault} disabled={mode !== 'mock'} onChange={event => setFault(event.target.value as Fault)}><option value="none">正常体验</option><option value="timeout">模型超时 → 重试</option><option value="audio">语音失败 → 字幕降级</option><option value="media">照片失败 → 保留角色动画</option><option value="slow">旧回复延迟 7 秒 → 验证打断</option></select>

@@ -8,13 +8,13 @@ export function requireKey() {
   if (!key) throw new ServiceError('尚未配置真实服务密钥，请切换到演示模式。', 503);
   return key;
 }
-export async function provider(path: string, body: BodyInit, signal: AbortSignal, contentType?: string, service: 'default' | 'stt' = 'default') {
-  // 语音识别可独立配置服务；未单独配置时复用通用模型服务的密钥与地址。
-  const key = service === 'stt' ? process.env.STT_API_KEY || process.env.OPENAI_API_KEY : requireKey();
-  if (!key) throw new ServiceError('语音识别尚未配置，请在 .env.local 设置 STT_API_KEY（或 OPENAI_API_KEY）并重启服务；也可以使用文字输入。', 503);
+export async function provider(path: string, body: BodyInit, signal: AbortSignal, contentType?: string, service: 'default' | 'stt' | 'tts' = 'default') {
+  // 识别和合成均可独立配置服务；未单独配置时复用通用模型服务的密钥与地址。
+  const key = service === 'stt' ? process.env.STT_API_KEY || process.env.OPENAI_API_KEY : service === 'tts' ? process.env.TTS_API_KEY || process.env.OPENAI_API_KEY : requireKey();
+  if (!key) throw new ServiceError(service === 'tts' ? '语音合成尚未配置，请设置 TTS_API_KEY 或 OPENAI_API_KEY 并重启服务。' : '语音识别尚未配置，请在 .env.local 设置 STT_API_KEY（或 OPENAI_API_KEY）并重启服务；也可以使用文字输入。', 503);
   const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
   if (contentType) headers['Content-Type'] = contentType;
-  const baseUrl = (service === 'stt' ? process.env.STT_BASE_URL : undefined) || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  const baseUrl = (service === 'stt' ? process.env.STT_BASE_URL : service === 'tts' ? process.env.TTS_BASE_URL : undefined) || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/${path}`, {
     method: 'POST', headers, body,
     // 同时响应客户端取消和服务端超时，避免上游请求长期占用资源。

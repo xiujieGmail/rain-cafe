@@ -7,8 +7,16 @@ import { setTimeout as delay } from 'node:timers/promises';
 let upstreamFailure = false;
 let upstreamPayload = { text: '看看你的照片？' };
 let forwarded;
+let synthesized;
 const upstream = createServer(async (req, res) => {
   try {
+    // 使用不同地址前缀和密钥验证独立 TTS，不让测试触碰真实环境服务。
+    if (req.url === '/tts-api/audio/speech') {
+      assert.equal(req.headers.authorization, 'Bearer tts-smoke-test-key');
+      const chunks = []; for await (const chunk of req) chunks.push(chunk);
+      synthesized = JSON.parse(Buffer.concat(chunks).toString());
+      res.writeHead(200, { 'Content-Type': 'audio/mpeg' }); res.end('test-audio-bytes'); return;
+    }
     assert.equal(req.url, '/v1/audio/transcriptions');
     assert.equal(req.headers.authorization, 'Bearer voice-smoke-test-key');
     const chunks = [];
@@ -29,7 +37,7 @@ const port = reserve.address().port;
 await new Promise(resolve => reserve.close(resolve));
 const base = `http://127.0.0.1:${port}`;
 const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(port)], {
-  env: { ...process.env, OPENAI_API_KEY: '', STT_API_KEY: 'voice-smoke-test-key', STT_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`, STT_MODEL: 'test-whisper' },
+  env: { ...process.env, OPENAI_API_KEY: '', STT_API_KEY: 'voice-smoke-test-key', STT_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`, STT_MODEL: 'test-whisper', TTS_API_KEY: 'tts-smoke-test-key', TTS_BASE_URL: `http://127.0.0.1:${upstream.address().port}/tts-api`, TTS_MODEL: 'test-tts', TTS_VOICE: 'test-voice' },
   stdio: 'ignore',
 });
 async function upload() {
@@ -55,6 +63,9 @@ try {
   assert.equal(reply.story, 'photo');
   assert.ok(reply.events.some(event => event.name === 'travel_photo'));
   assert.equal((await fetch(`${base}/audio/${reply.audioId}.wav`)).status, 200);
+  const speech = await fetch(`${base}/api/speech`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: reply.text }) });
+  assert.equal(speech.status, 200); assert.equal(await speech.text(), 'test-audio-bytes');
+  assert.deepEqual(synthesized, { model: 'test-tts', voice: 'test-voice', input: reply.text, response_format: 'mp3' });
   // 空转写与非对象响应分别给出可操作的识别提示和协议错误。
   upstreamPayload = { text: '  ' };
   const empty = await upload();
@@ -68,7 +79,7 @@ try {
   const failure = await upload();
   assert.equal(failure.status, 502);
   assert.match((await failure.json()).error, /繁忙/);
-  console.log('Voice HTTP smoke passed: audio forwarding, independent STT config, transcript → mock dialogue → WAV, upstream failure. Local test service only; no actual speech recognition.');
+  console.log('Voice HTTP smoke passed: independent STT/TTS config, transcript → mock dialogue → WAV, empty/malformed transcript and upstream failure. Local test service only; no actual speech recognition or synthesis.');
 } finally {
   child.kill('SIGTERM');
   await new Promise(resolve => { if (child.exitCode !== null) resolve(); else child.once('exit', resolve); });
