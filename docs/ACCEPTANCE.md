@@ -61,3 +61,10 @@
 - 静态导出 37 个文件扫描通过，未包含环境文件或已知服务密钥；发布产物提交为 `4012ead`。
 - GitHub Pages 部署成功：[部署记录](https://github.com/xiujieGmail/rain-cafe/actions/runs/38047970911)。公网页面 HTTP 200，HTML 与本次导出一致。
 - 公网 Chromium 验证两轮共四条消息、历史滚动与回到底部；390×844 尺寸无页面水平溢出，设置下拉框蓝灰配色生效，无页面错误。此次使用 Mock，未新增真实第三方服务验收。
+
+## GitHub Actions 自动部署验收
+
+- 新增 `.github/workflows/pages.yml`：main 推送或手动触发，安装依赖、类型/规范/32 项测试检查、静态导出、产物检查、官方 Pages 上传与部署。
+- Pages 发布来源已切换为 GitHub Actions；构建任务只读源码，部署任务使用 pages:write 与 id-token:write，无 AI 服务密钥注入。
+- 源码提交 `b34b8d6` 推送后自动触发并成功完成：[首次自动部署](https://github.com/xiujieGmail/rain-cafe/actions/runs/38049198432)。后续 main 推送无需再手动执行 deploy:preview。
+- GitHub CLI 初次新增 workflow 所需权限已完成一次性授权，与工作流运行时 GITHUB_TOKEN 的权限独立。
