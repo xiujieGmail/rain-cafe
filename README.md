@@ -82,6 +82,27 @@ npm start
 
 本次未配置私人密钥，真实外部服务调用尚未验收。两种模式下的麦克风录音均会发往所配置的语音识别服务；真实模式还会发送对话到模型服务，页面设置中已说明。
 
+### 硅基流动配置
+
+本地 `.env.local` 已准备硅基流动配置，只需填写 `OPENAI_API_KEY`。该变量是现有代码使用的通用服务端密钥名称，可以填写硅基流动的 Key。不要将 `.env.local` 提交至仓库。
+
+其他机器使用时，复制 `.env.example` 为 `.env.local`，按以下配置填写：
+
+```dotenv
+OPENAI_API_KEY=填写硅基流动的API_Key
+OPENAI_BASE_URL=https://api.siliconflow.cn/v1
+LLM_MODEL=XingChenAGI/Xing4.0-29B
+STT_MODEL=FunAudioLLM/SenseVoiceSmall
+STT_API_KEY=
+STT_BASE_URL=
+TTS_MODEL=FunAudioLLM/CosyVoice2-0.5B
+TTS_VOICE=FunAudioLLM/CosyVoice2-0.5B:claire
+```
+
+填写后重启本地服务：开发模式执行 `npm run dev`；生产模式执行 `npm run build` 后 `npm start`。不要让两个服务同时占用 3000 端口。打开 http://localhost:3000，在「体验设置」切换到「真实服务」。先用文字验证 LLM 与 TTS，再录音验证 STT 和完整对话链路。
+
+免费对话模型的可用性和 JSON 输出尚待实际验证。若不可用或输出不稳定，可将 `LLM_MODEL` 改为 `Qwen/Qwen3.5-35B-A3B`（付费，参数适配与效果仍需验证）。语音合成使用系统预置音色，不需要先配置声音克隆。模型、额度和价格以账号控制台为准；当前配置准备不代表真实服务已跑通。
+
 ## 系统结构
 
 ```text
