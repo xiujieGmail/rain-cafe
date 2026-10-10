@@ -35,3 +35,4 @@
 - skill-creator 校验通过；中文注释规则探针确认 URL 字符串不误判、中文行注释允许、英文说明与块说明拒绝。
 - 无密钥副本 Chromium 验证照片回复进入 speaking，点击模拟语音立即进入 listening；设置中真实服务禁用、麦克风选择与故障选项可见，无页面错误。
 - 最新本地生产服务已重启，HTTP smoke 通过；静态导出 37 个文件扫描未发现环境文件或当前服务密钥，部署产物推送到 gh-pages。
+- 更新后的 GitHub Pages 部署成功：[部署记录](https://github.com/xiujieGmail/rain-cafe/actions/runs/38038339075)。公网 HTML 已匹配本次构建，角色图集、照片和预录语音 HTTP 200；公网浏览器照片回复进入 speaking，模拟输入切换 listening，无页面错误。
