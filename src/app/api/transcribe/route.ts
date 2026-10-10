@@ -1,4 +1,5 @@
 import { provider, routeError } from '@/lib/server';
+import { z } from 'zod';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
@@ -13,8 +14,10 @@ export async function POST(request: Request) {
     upstreamForm.set('language', 'zh');
     // 使用独立 STT 配置转发实际录音，取消信号贯穿上传和识别过程。
     const upstream = await provider('audio/transcriptions', upstreamForm, request.signal, undefined, 'stt');
-    const result = await upstream.json();
-    if (typeof result.text !== 'string' || !result.text.trim()) return Response.json({ error: '没有听清，请再说一次。' }, { status: 422 });
-    return Response.json({ text: result.text.trim().slice(0, 500) });
+    // 上游 JSON 也属于不可信输入，区分协议异常与未识别出人声。
+    const result = z.object({ text: z.string() }).safeParse(await upstream.json());
+    if (!result.success) return Response.json({ error: '语音服务返回格式异常，请确认所配置的识别模型支持转写接口。' }, { status: 502 });
+    if (!result.data.text.trim()) return Response.json({ error: '语音服务未识别出文字。请在体验设置中回放本次录音，确认有清晰人声；也可以切换麦克风后重录。' }, { status: 422 });
+    return Response.json({ text: result.data.text.trim().slice(0, 500) });
   } catch (error) { return routeError(error); }
 }

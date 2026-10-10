@@ -1,0 +1,4 @@
+interface:
+  display_name: "雨隙工程规范"
+  short_description: "约束雨隙项目的中文注释、类型安全、语音生命周期、密钥保护与交付验收"
+  default_prompt: "Use $rain-cafe-engineering to implement or review changes in rain-cafe following its Chinese comments and engineering standards."

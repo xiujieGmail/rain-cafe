@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 // 独立本地上游只验证录音转发和对话链路，不作为真实语音识别质量的证据。
 let upstreamFailure = false;
+let upstreamPayload = { text: '看看你的照片？' };
 let forwarded;
 const upstream = createServer(async (req, res) => {
   try {
@@ -16,7 +17,7 @@ const upstream = createServer(async (req, res) => {
     const form = await request.formData();
     forwarded = { file: await form.get('file').text(), type: form.get('file').type, model: form.get('model'), language: form.get('language') };
     res.writeHead(upstreamFailure ? 429 : 200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(upstreamFailure ? { error: 'busy' } : { text: '看看你的照片？' }));
+    res.end(JSON.stringify(upstreamFailure ? { error: 'busy' } : upstreamPayload));
   } catch {
     res.writeHead(500); res.end('test upstream assertion failed');
   }
@@ -54,6 +55,15 @@ try {
   assert.equal(reply.story, 'photo');
   assert.ok(reply.events.some(event => event.name === 'travel_photo'));
   assert.equal((await fetch(`${base}/audio/${reply.audioId}.wav`)).status, 200);
+  // 空转写与非对象响应分别给出可操作的识别提示和协议错误。
+  upstreamPayload = { text: '  ' };
+  const empty = await upload();
+  assert.equal(empty.status, 422);
+  assert.match((await empty.json()).error, /回放/);
+  upstreamPayload = null;
+  const malformed = await upload();
+  assert.equal(malformed.status, 502);
+  assert.match((await malformed.json()).error, /格式异常/);
   upstreamFailure = true;
   const failure = await upload();
   assert.equal(failure.status, 502);

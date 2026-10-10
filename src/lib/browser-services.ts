@@ -30,7 +30,7 @@ export async function transcribe(blob: Blob, signal: AbortSignal) {
   if (staticPreview) throw new Error('GitHub 静态预览不提供语音识别后端。请使用文字或模拟语音输入，实际录音请在本地配置服务后体验。');
   const form = new FormData();
   // 根据浏览器实际录音格式设置扩展名，不把 Safari 的 MP4 当成 WebM 上传。
-  const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+  const ext = blob.type.includes('wav') ? 'wav' : blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
   form.set('audio', blob, `recording.${ext}`);
   const response = await checked(await fetch('/api/transcribe', { method: 'POST', body: form, signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]) }));
   const data = await response.json();
@@ -57,6 +57,7 @@ export async function speak(reply: TurnReply, mode: 'mock' | 'live', fault: Faul
       if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
       const audio = new Audio(url);
       let finished = false;
+      // eslint-disable-next-line prefer-const -- 提前声明供清理回调引用，绑定事件后再启动计时。
       let loadingTimer: ReturnType<typeof setTimeout> | undefined;
       let playbackTimer: ReturnType<typeof setTimeout> | undefined;
       // 播放结束、失败和取消共用幂等清理，立即停声并解除所有旧回调。
@@ -90,11 +91,13 @@ export async function speak(reply: TurnReply, mode: 'mock' | 'live', fault: Faul
 }
 
 export type Recording = { stop: () => void; cancel: () => void };
-export async function record(signal: AbortSignal, onComplete: (blob: Blob) => void, onFailure: (error: Error) => void): Promise<Recording> {
+export type RecordingOptions = { deviceId?: string; onLevel?: (level: number) => void; onDevice?: (name: string) => void };
+export async function record(signal: AbortSignal, onComplete: (blob: Blob) => void, onFailure: (error: Error) => void, options: RecordingOptions = {}): Promise<Recording> {
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('当前浏览器无法录音，请在 HTTPS 或 localhost 下使用，或改用文字。');
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(options.deviceId ? { deviceId: { exact: options.deviceId } } : {}) } });
   // 用户可能在授权弹窗期间开始了新轮；迟到的麦克风授权也要释放设备。
   if (signal.aborted) { stream.getTracks().forEach(track => track.stop()); throw new DOMException('Aborted', 'AbortError'); }
+  options.onDevice?.(stream.getAudioTracks()[0]?.label || '系统默认麦克风');
   // 优先使用浏览器支持的编码，兼容 Chromium、Safari 和 Ogg 录音。
   const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
   let recorder: MediaRecorder;
@@ -103,11 +106,21 @@ export async function record(signal: AbortSignal, onComplete: (blob: Blob) => vo
   const chunks: Blob[] = [];
   let canceled = false;
   let cleaned = false;
+  let levelTimer: ReturnType<typeof setInterval> | undefined;
+  let meterContext: AudioContext | undefined;
+  let meterSource: MediaStreamAudioSourceNode | undefined;
+  // eslint-disable-next-line prefer-const -- 清理回调需提前引用，录音启动后才开始限时。
   let maxTimer: ReturnType<typeof setTimeout>;
   const stop = () => { if (recorder.state !== 'inactive') recorder.stop(); };
   // 正常结束会提交录音，取消只停止设备，不能把旧录音交给识别服务。
   const cancel = () => { canceled = true; stop(); };
-  const cleanup = () => { if (cleaned) return; cleaned = true; clearTimeout(maxTimer); signal.removeEventListener('abort', cancel); stream.getTracks().forEach(track => track.stop()); };
+  const cleanup = () => {
+    if (cleaned) return; cleaned = true;
+    clearTimeout(maxTimer); clearInterval(levelTimer); meterSource?.disconnect();
+    if (meterContext) void meterContext.close().catch(() => {});
+    options.onLevel?.(0);
+    signal.removeEventListener('abort', cancel); stream.getTracks().forEach(track => track.stop());
+  };
   recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
   // 先释放麦克风和定时器，再提交完整录音；取消后的片段直接丢弃。
   recorder.onstop = () => {
@@ -118,6 +131,23 @@ export async function record(signal: AbortSignal, onComplete: (blob: Blob) => vo
   signal.addEventListener('abort', cancel, { once: true });
   try { recorder.start(); }
   catch { cleanup(); throw new Error('无法开始录音，请重新授权或使用文字。'); }
+  // 实时显示实际输入强度；音量检测失败不影响 MediaRecorder 正常录制。
+  if (options.onLevel && typeof AudioContext !== 'undefined') {
+    try {
+      meterContext = new AudioContext();
+      const analyser = meterContext.createAnalyser(); analyser.fftSize = 1024;
+      meterSource = meterContext.createMediaStreamSource(stream); meterSource.connect(analyser);
+      void meterContext.resume().catch(() => {});
+      const samples = new Float32Array(analyser.fftSize);
+      levelTimer = setInterval(() => {
+        analyser.getFloatTimeDomainData(samples);
+        const rms = Math.sqrt(samples.reduce((sum, sample) => sum + sample * sample, 0) / samples.length);
+        options.onLevel?.(Math.min(1, rms * 8));
+      }, 100);
+    } catch {
+      // 音量表属于辅助反馈，录音仍继续。
+    }
+  }
   maxTimer = setTimeout(stop, 45000);
   return { stop, cancel };
 }

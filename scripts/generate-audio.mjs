@@ -4,7 +4,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 await mkdir('public/audio', { recursive: true });
 await mkdir('tmp/audio', { recursive: true });
 const source = await readFile('src/lib/mock.ts', 'utf8');
-const lines = [...source.matchAll(/^  (\w+): '([^']+)',/gm)];
+const lines = [...source.matchAll(/^ {2}(\w+): '([^']+)',/gm)];
 for (const [, name, text] of lines) {
   execFileSync('/usr/bin/say', ['-v', 'Tingting', '-r', '175', '-o', `tmp/audio/${name}.aiff`, text]);
   execFileSync('/usr/bin/afconvert', ['-f', 'WAVE', '-d', 'LEI16@22050', `tmp/audio/${name}.aiff`, `public/audio/${name}.wav`]);

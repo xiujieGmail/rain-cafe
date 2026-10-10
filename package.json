@@ -9,12 +9,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
-    "check": "npm run typecheck && npm run test",
+    "check": "npm run typecheck && npm run lint && npm run test",
     "assets": "node scripts/generate-assets.mjs",
     "audio": "node scripts/generate-audio.mjs",
     "smoke:voice": "node scripts/voice-smoke.mjs",
     "build:preview": "node scripts/build-preview.mjs",
-    "deploy:preview": "node scripts/deploy-preview.mjs"
+    "deploy:preview": "node scripts/deploy-preview.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "lucide-react": "^0.577.0",
@@ -25,13 +26,21 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
     "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": "^22.13.0 || >=24"
   }
 }

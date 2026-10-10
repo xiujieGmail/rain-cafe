@@ -15,13 +15,23 @@ class FakeRecorder {
 }
 function device(getStream?: () => Promise<unknown>) {
   const stop = vi.fn();
-  const stream = { getTracks: () => [{ stop }] };
+  const stream = { getTracks: () => [{ stop }], getAudioTracks: () => [{ stop, label: 'Test microphone' }] };
   vi.stubGlobal('MediaRecorder', FakeRecorder);
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: getStream || (async () => stream) } });
   return { stream, stop };
 }
 afterEach(() => { vi.unstubAllGlobals(); });
 describe('microphone cancellation and cleanup', () => {
+  it('uses the selected input device and reports the actual microphone name', async () => {
+    const { stream } = device();
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
+    const onDevice = vi.fn();
+    const recording = await record(new AbortController().signal, vi.fn(), vi.fn(), { deviceId: 'built-in-mic', onDevice });
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: expect.objectContaining({ deviceId: { exact: 'built-in-mic' } }) });
+    expect(onDevice).toHaveBeenCalledWith('Test microphone');
+    recording.cancel();
+  });
   it('selects a supported Safari format and stops microphone tracks after submission', async () => {
     const { stop } = device();
     const complete = vi.fn();

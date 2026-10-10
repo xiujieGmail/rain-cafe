@@ -27,7 +27,7 @@ describe('browser audio lifetime', () => {
     expect(FakeAudio.last.pause).toHaveBeenCalledOnce();
     expect(FakeAudio.last.removeAttribute).toHaveBeenCalledWith('src');
     expect(FakeAudio.last.onended).toBe(null);
-    // A previously queued native callback must not settle or restart playback twice.
+    // 已排队的旧回调不得再次结束或重新启动播放。
     oldEnded?.();
     expect(FakeAudio.last.pause).toHaveBeenCalledOnce();
   });
