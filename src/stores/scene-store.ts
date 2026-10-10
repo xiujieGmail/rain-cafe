@@ -26,6 +26,7 @@ type Store = SceneState & { traces: Trace[]; patch: (value: Partial<SceneState>)
 export const useSceneStore = create<Store>((set) => ({
   ...initialScene, traces: [],
   patch: value => set(value),
+  // 只保留最近 40 条事件，便于定位打断与播放问题，避免长期对话无限积累记录。
   trace: (turnId, stage) => set(state => ({ traces: [...state.traces.slice(-39), { id: (state.traces.at(-1)?.id || 0) + 1, time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), turnId, stage }] })),
   reset: () => set({ ...initialScene, traces: [] }),
 }));
