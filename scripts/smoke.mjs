@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
+const config = await fetch(`${base}/api/config`).then(r => r.json());
+assert.equal(config.defaultMode, 'mock');
+assert.deepEqual(Object.keys(config).sort(), ['defaultMode', 'liveAvailable']);
+let turn = 0;
+const input = (text, story = 'arrival', extra = {}) => ({ turnId: ++turn, text, story, mode: 'mock', history: [], fault: 'none', ...extra });
+async function respond(body) {
+  return fetch(`${base}/api/respond`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+}
+const greeting = await respond(input('你好')).then(r => r.json());
+assert.equal(greeting.turnId, turn);
+assert.equal(greeting.audioId, 'greeting');
+const audio = await fetch(`${base}/audio/${greeting.audioId}.wav`);
+assert.equal(audio.status, 200);
+assert.equal(Buffer.from(await audio.arrayBuffer()).subarray(0, 4).toString(), 'RIFF');
+const photo = await respond(input('看看照片', 'trust')).then(r => r.json());
+assert.equal(photo.story, 'photo');
+assert.ok(photo.events.some(e => e.name === 'travel_photo'));
+const memory = await respond(input('你等的是谁', photo.story)).then(r => r.json());
+assert.match(memory.text, /海边车站/);
+const failure = await respond(input('你好', 'arrival', { fault: 'timeout' }));
+assert.equal(failure.status, 504);
+assert.match((await failure.json()).error, /演示/);
+assert.equal((await respond(input(''))).status, 400);
+if (!config.liveAvailable) assert.equal((await respond(input('你好', 'arrival', { mode: 'live' }))).status, 503);
+const invalidAudio = new FormData();
+invalidAudio.set('audio', new Blob([], { type: 'audio/webm' }), 'empty.webm');
+assert.equal((await fetch(`${base}/api/transcribe`, { method: 'POST', body: invalidAudio })).status, 400);
+assert.equal((await fetch(`${base}/api/speech`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 400);
+assert.equal((await fetch(`${base}/character/mira-atlas.webp`)).status, 200);
+console.log('HTTP smoke passed: config, dialogue, context, WAV, photo event, timeout, validation and no-key behavior.');

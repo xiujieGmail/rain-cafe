@@ -1,0 +1,37 @@
+{
+  "name": "rain-cafe",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3000",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke.mjs",
+    "check": "npm run typecheck && npm run test",
+    "assets": "node scripts/generate-assets.mjs",
+    "audio": "node scripts/generate-audio.mjs",
+    "smoke:voice": "node scripts/voice-smoke.mjs",
+    "build:preview": "node scripts/build-preview.mjs",
+    "deploy:preview": "node scripts/deploy-preview.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "sharp": "^0.35.5",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

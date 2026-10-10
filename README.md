@@ -1,0 +1,223 @@
+# 雨隙 · 雨夜咖啡馆
+
+一个移动端优先的互动场景 MVP。暴雨过后的夜晚，你在即将打烊的咖啡馆遇到 Mira，一位 26 岁的旅行摄影师。她在等人，你可以用文字或语音与她交流，也可以在她说话时开始新输入，打断当前回复。
+
+界面以原创角色和咖啡馆场景为主体，不采用聊天消息列表。默认本地演示的文字和模拟输入无需 API 密钥；内含中文预录语音、48 帧角色图集、剧情照片、结构化演出与故障模拟。
+
+## 一条命令启动
+
+前提：Node.js 22+、npm。首次安装依赖需要访问 npm；安装完成后，Mock 的文字与模拟输入没有运行时外部服务依赖；实际麦克风输入需要语音识别服务。无需安装 Python、数据库、Docker 或 macOS 音频工具。
+
+在项目目录执行：
+
+```bash
+./start.sh
+```
+
+脚本在缺少 node_modules 时执行 npm ci，然后启动开发服务。打开 **http://localhost:3000**。也可手动执行 npm ci 和 npm run dev。端口 3000 需可用。
+
+生产构建与启动：
+
+```bash
+npm run build
+npm start
+```
+
+不要同时让开发与生产服务占用同一端口。手机浏览页面可以使用本机局域网地址，但手机麦克风需要 HTTPS；localhost 是开发例外。单纯局域网 HTTP 浏览不等于具备麦克风授权条件。
+
+## 两种模式
+
+### 本地演示（默认）
+
+- 文字输入通过真实服务端 /api/respond，由规则生成当前剧情回复和演出指令。
+- 角色语音使用项目内 WAV，与每条 Mock 台词对应。
+- 点击麦克风开始录音，再次点击结束；录音自动上传 `/api/transcribe`，真实识别出的文字直接提交 `/api/respond`，随后播放角色预录回复并显示字幕。无需选择模拟转写。
+- 实际录音需要服务端 STT 配置。未配置或识别失败时明确报错，允许重新录制或使用文字，不会用固定文字冒充识别结果。
+- 上传文件仅在请求内存中转发，不写入服务器磁盘；识别服务的数据保留政策由其提供商决定。
+- 没有麦克风也可以点击「模拟语音输入」。该入口立即打断角色、进入倾听，再选择转写内容继续。
+- 本地模式的语义理解是关键词与剧情节点规则，不应把它描述为自由生成的大模型对话。
+
+建议体验：你在等谁？ → 我可以陪你。 → 看看你的照片？ → 你等的是谁？ → 雨停了，我们出去走走吧。
+
+### 真实服务
+
+复制 .env.example 为 .env.local，填入服务端 OPENAI_API_KEY，重启服务。在右上角「体验设置」切换到「真实服务」。未配置时选项禁用。
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| OPENAI_API_KEY | 空 | 服务端密钥，不进入客户端 |
+| OPENAI_BASE_URL | https://api.openai.com/v1 | OpenAI 兼容服务地址 |
+| LLM_MODEL | gpt-4o-mini | JSON 角色回复和演出指令 |
+| STT_MODEL | whisper-1 | 录音转写，语言 zh |
+| STT_API_KEY | 回退到 OPENAI_API_KEY | 可独立配置语音识别密钥 |
+| STT_BASE_URL | 回退到 OPENAI_BASE_URL | 可独立配置语音识别服务地址 |
+| TTS_MODEL | tts-1 | 语音合成 |
+| TTS_VOICE | nova | 合成声音 |
+
+端点分别为 chat/completions、audio/transcriptions、audio/speech。第三方兼容服务必须支持所选模型、JSON 输出和音频端点，不能假设一个文本兼容地址同时兼容语音。
+
+只给演示模式接入实际语音输入时，复制 `.env.example` 为 `.env.local`，填写 `STT_API_KEY`、`STT_BASE_URL` 和 `STT_MODEL`，重启服务即可；无需设置 LLM/TTS 密钥，也无需切换模式。服务必须支持 OpenAI 兼容的 `audio/transcriptions` multipart 接口和 JSON `{ text }` 响应。
+
+本次未配置私人密钥，真实外部服务调用尚未验收。两种模式下的麦克风录音均会发往所配置的语音识别服务；真实模式还会发送对话到模型服务，页面设置中已说明。
+
+## 系统结构
+
+```text
+React 场景界面
+  ├─ 文字输入 / MediaRecorder 录音
+  ├─ InteractionEngine：对话流程、上下文、表演生命周期
+  ├─ TurnGate：轮次、AbortController、清理
+  ├─ Zustand：画面状态、剧情、字幕与有界事件记录
+  └─ Canvas：原创序列帧、呼吸、眨眼、说话口型切换
+
+Next.js Route Handlers（Node.js runtime）
+  ├─ /api/config：是否配置真实服务，不返回密钥
+  ├─ /api/respond：验证输入，Mock 或 LLM，校验演出协议
+  ├─ /api/transcribe：multipart 录音 → STT
+  └─ /api/speech：有效文本 → TTS → 音频二进制
+```
+
+| 文件 / 目录 | 职责 |
+| --- | --- |
+| src/components/cafe-experience.tsx | 输入、录音、设置和状态呈现 |
+| src/components/scene-stage.tsx | 背景、环境变化、照片和媒体降级 |
+| src/components/character-canvas.tsx | 48 帧角色图集播放 |
+| src/lib/interaction.ts | 文字到语音的主流程与上下文提交 |
+| src/lib/turn-gate.ts | 有效轮次与取消 |
+| src/lib/browser-services.ts | 浏览器录音、播放和 API 访问 |
+| src/lib/protocol.ts | Zod 输入及演出协议 |
+| src/lib/server.ts | 服务端 Provider、超时与错误转换 |
+| src/lib/mock.ts | 有上下文的本地剧情规则和台词 |
+| src/stores/scene-store.ts | 可视状态与最多 40 条事件记录 |
+| scripts/ | 启动辅助、素材生成与 HTTP smoke |
+| tests/ | 取消、恢复、播放与录音生命周期测试 |
+
+会话上下文由当前页面的 InteractionEngine 保存，最近最多 14 条消息随请求发送；剧情节点保存在同一页面状态中。刷新或重启故事会清空。服务端不持久化会话，不需要数据库。
+
+## 语音交互与打断
+
+选择点击开始/结束录音，未采用自动 VAD。原因是便于在 72 小时范围内明确控制移动端权限、录音边界、误触发与打断。录音最长 45 秒，支持浏览器可用的 WebM/MP4/Ogg；请求文件限制 8MB。请求回声消除、降噪和自动增益，具体能力取决于浏览器与设备。
+
+```text
+待机 → 开始录音 → 倾听 → 结束录音 → STT → 思考
+     → LLM 结构化回复 → TTS → 实际播放 → 说话 → 待机
+
+说话 / 思考 → 开始新的语音或文字输入
+            → 旧轮失效 + 停声 + 清空字幕和旧媒体
+            → 新轮倾听或思考
+```
+
+每轮单调递增 turnId。新输入先使旧轮失效，再触发 AbortController。播放注册在同一取消信号上，收到取消时立即 pause、移除音源、注销 playing/ended/error 回调。旧轮的字幕、表演与照片在新轮开始时清理。
+
+网络返回、TTS 完成、播放开始、播放结束、录音转写和演出发布均检查有效轮次。即使 Provider 不接受取消，旧响应也无法重新播放或覆盖当前画面。播放和表演不依赖独立的未跟踪定时器。
+
+已完整完成的角色回复才加入对话上下文；被打断的回复记录为「未完整播放」，不会把整段回复当成用户已听完。暂不逐字追踪实际听到的内容。
+
+字幕按整句与播放生命周期同步显示，不是逐字流式字幕。口型是播放状态驱动的帧切换，不是音素或真实音频振幅对齐。
+
+## 角色与场景协议
+
+```json
+{
+  "turnId": 12,
+  "text": "这是我在海边拍的最后一张照片。",
+  "emotion": "wistful",
+  "story": "photo",
+  "events": [
+    { "on": "speech_start", "type": "action", "name": "show_camera" },
+    { "on": "speech_start", "type": "media", "name": "travel_photo" }
+  ],
+  "elapsedMs": 700
+}
+```
+
+- 表情：calm 平静、guarded 警惕、warm 微笑、wistful 怀念。眉眼和嘴形在图集中有区别。
+- 动作：look_window 望向窗外、show_camera 举相机；idle 为基础姿势。
+- 环境：warm_light 增加暖光、rain_clears 停雨并改变背景亮度与镜头尺度。
+- 媒体：travel_photo 展示预制海边车站插画，属于当前回复，不是运行时生成图片。
+- 事件触发：speech_start / speech_end；只允许有效轮次发布。
+
+模型不能直接指定任意媒体地址。Zod 校验字段、资源枚举与事件类型匹配；非法指令且文本仍可用时，保留文本，回退平静表情并移除事件。没有可用文本则请求失败。
+
+所选多模态能力是**序列帧角色动画**，不是视频或生成式媒体。图集共 4 表情 × 3 姿势 × 2 嘴形 × 2 眼形 = 48 帧，以 Canvas 播放，附带轻微呼吸。媒体照片是演出中的额外视觉事件。
+
+## 失败反馈与恢复
+
+| 故障 | 行为 |
+| --- | --- |
+| 麦克风拒绝 / 不可用 | 显示提示，保留文字和模拟输入 |
+| 录音错误 / 空音频 / STT 失败 | 释放麦克风，返回可操作状态，允许重新录制 |
+| 网络失败 / 模型超时 | 保留输入摘要，显示重试入口 |
+| 语音加载失败 / 播放被浏览器拦截 | 保留有效字幕与表演，提示语音降级 |
+| 照片失败 | 不显示破图，保留角色并显示媒体反馈 |
+| 角色图集失败 | 显示静态 Mira，并明确标注动画降级 |
+| 快速输入或旧响应迟到 | 仅当前轮次可提交状态 |
+
+外部请求服务端超时 25 秒、客户端 API 超时 30 秒；音频加载 12 秒、播放最多 90 秒。取消会清理音频定时器；正常录音完成、取消和失败会释放设备轨道。
+
+右上角设置可模拟「下一轮」模型超时、音频失败、照片失败、旧回复延迟 7 秒。只有 Mock 模式有效，提交后自动清除。照片失败需配合照片主题；提示明确标示「演示」，不冒充真实服务故障。
+
+## 技术选择与取舍
+
+- Next.js 单项目同时承载页面与 API，减少多进程启动配置；首版 HTTP 链路，不依赖 WebSocket。
+- STT → LLM → TTS 更容易绑定结构化表演和调试取消；代价是响应延迟高于端到端实时语音。
+- 序列帧、背景和照片全部本地，减少生成服务的时延与角色一致性问题；表现力暂时偏插画。
+- 演出使用播放生命周期触发，避免台词和场景脱节；首版没有复杂时间线。
+- 客户端会话降低持久化负担，刷新会丢失对话；没有账号、后台、支付或多角色。
+- Tailwind v4 已接入；场景主要使用语义 CSS，便于控制复杂响应式构图。
+
+## 第三方服务与素材来源
+
+- 真实模式可选 OpenAI 或兼容服务；Mock 的文字与模拟输入不调用它们，实际录音会调用 STT。
+- Next.js、React、TypeScript、Zustand、Zod、Tailwind CSS、Vitest、Sharp：依赖版本见 package-lock.json。
+- Lucide 图标：lucide-react，ISC 许可。
+- Mira、咖啡馆、海边车站：本项目 AI 辅助编写的原创 SVG，脚本 scripts/generate-assets.mjs；无第三方角色图或网络图片。
+- 本地中文声音：macOS 系统 Tingting 语音生成，由 say 和 afconvert 导出为 WAV；生成脚本 scripts/generate-audio.mjs。运行项目不需要这些工具。
+- 字体：系统中文字体与系统衬线字体，不请求在线字体。
+
+重新生成图集：npm run assets。重新生成中文 WAV：npm run audio（仅 macOS，需要 Tingting 声音）。素材已经包含在项目中，正常启动无需生成。
+
+## 验证与当前限制
+
+```bash
+npm run check   # TypeScript + Vitest
+npm run smoke   # 已启动服务的 HTTP 闭环检查
+npm run build   # 生产构建
+```
+
+自动验证结果和未验收项见 docs/ACCEPTANCE.md；当前部署截图见 docs/pages-desktop.png 和 docs/pages-mobile.png。
+
+已知限制：
+
+1. 未配置私人 API 密钥，真实外部 STT/LLM/TTS 尚未实测；切换配置后需补验。
+2. 桌面 Chromium 与手机尺寸模拟已验证，未进行真实 iOS/Android 设备测试，权限、自动播放和编码兼容性需实机确认。
+3. 两种模式的实际录音均上传并自动识别；未配置 STT 时只能使用文字或明确标识的模拟输入。
+4. 全句字幕、状态驱动口型，无自动 VAD、流式音频、音素口型、断线会话恢复。
+5. 会话只存在页面内存；刷新清空。图片没有运行时生成。
+6. 极小窗口或手机键盘弹出时可能需要滚动；复杂长回复不保证字幕逐字对齐。
+7. GitHub Pages 提供静态演示，真实服务需本地后端；最终 3–5 分钟人工录屏尚未完成，建议流程见 docs/DEMO.md。
+8. 尚未针对公开部署加入身份校验、调用配额和持久化。这些不影响本地 Mock 体验。
+
+投入记录：本地 MVP 首次开发与自动验收约 1 小时（2026-10-10，AI 工具执行的墙钟时间，非人工连续编码工时）；收题时间和最终提交截止时间由实际收题记录确认。
+
+## 如果继续开发两周
+
+第一周：配置并验收真实语音；覆盖 iOS/Android；完善上下文的打断片段记录；引入流式 TTS、句级字幕、阶段延迟观测和会话恢复。
+
+第二周：优化角色原画和动作过渡；增加音频驱动口型；尝试自动 VAD 并处理附和与回声；在需要时增加受控缓存、服务限额与持久化。优先修复实测问题，再增加演出类型。
+
+## 动漫视觉版本
+
+当前界面采用原创动漫矢量插画风：成年 Mira、蓝色雨夜与暖色咖啡馆。角色、背景和旅途插画均在 `scripts/generate-assets.mjs` 中可编辑，`npm run assets` 可重新生成全部素材。角色图集仍为 48 帧，保留情绪、望窗、举相机、眨眼与说话嘴形。当前预览截图见 `docs/pages-desktop.png` 和 `docs/pages-mobile.png`。
+
+## GitHub 免费在线预览
+
+仓库：https://github.com/xiujieGmail/rain-cafe
+
+在线演示：https://xiujiegmail.github.io/rain-cafe/
+
+GitHub Pages 只托管静态文件。在线演示在浏览器内运行 Mock 剧情，支持文字、模拟语音输入、预录音频、表情动作、照片、环境变化、故障模拟与打断；不提供录音上传识别、真实 LLM 或在线 TTS。麦克风识别会明确提示需要本地后端，不会伪造转写。请按上面的本地配置说明接入语音服务。
+
+`npm run build:preview` 在 `.preview-build/` 内单独生成导出，不包含 API 路由和环境密钥文件，不影响本地完整项目。配置 GitHub CLI HTTPS 登录后，执行 `npm run deploy:preview` 完成检查、构建与发布到 `gh-pages` 产物分支；源码保存在 `main`。GitHub Pages 使用分支发布，源码推送后需再次执行部署命令更新预览。生成目录为 `.preview-build/out`，部署基础路径为 `/rain-cafe`。
+
+关键代码已使用中文 `//` 注释说明轮次失效、资源释放、录音上传、协议校验、播放同步和静态预览边界。
