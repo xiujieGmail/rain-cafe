@@ -1,5 +1,11 @@
 # 雨隙 · 雨夜咖啡馆
 
+**在线演示：[点击体验雨隙咖啡馆](https://xiujiegmail.github.io/rain-cafe/)**
+
+**源码仓库：[xiujieGmail/rain-cafe](https://github.com/xiujieGmail/rain-cafe)**
+
+在线演示支持文字对话、模拟语音输入、预录语音与角色演出；实际录音识别和真实模型对话请按下文配置本地后端。
+
 一个移动端优先的互动场景 MVP。暴雨过后的夜晚，你在即将打烊的咖啡馆遇到 Mira，一位 26 岁的旅行摄影师。她在等人，你可以用文字或语音与她交流，也可以在她说话时开始新输入，打断当前回复。
 
 界面以原创角色和咖啡馆场景为主体，不采用聊天消息列表。默认本地演示的文字和模拟输入无需 API 密钥；内含中文预录语音、48 帧角色图集、剧情照片、结构化演出与故障模拟。
@@ -212,9 +218,9 @@ npm run build   # 生产构建
 
 ## GitHub 免费在线预览
 
-仓库：https://github.com/xiujieGmail/rain-cafe
+仓库：[xiujieGmail/rain-cafe](https://github.com/xiujieGmail/rain-cafe)
 
-在线演示：https://xiujiegmail.github.io/rain-cafe/
+在线演示：[https://xiujiegmail.github.io/rain-cafe/](https://xiujiegmail.github.io/rain-cafe/)
 
 GitHub Pages 只托管静态文件。在线演示在浏览器内运行 Mock 剧情，支持文字、模拟语音输入、预录音频、表情动作、照片、环境变化、故障模拟与打断；不提供录音上传识别、真实 LLM 或在线 TTS。麦克风识别会明确提示需要本地后端，不会伪造转写。请按上面的本地配置说明接入语音服务。
 

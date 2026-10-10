@@ -1,5 +1,9 @@
 # 交付演示流程
 
+在线演示：[雨隙 · 雨夜咖啡馆](https://xiujiegmail.github.io/rain-cafe/)
+
+源码仓库：[xiujieGmail/rain-cafe](https://github.com/xiujieGmail/rain-cafe)
+
 建议人工录制 3–5 分钟，说明当前运行的是静态演示还是本地完整后端。
 
 1. 展示咖啡馆角色、四种交互状态与移动端布局。
