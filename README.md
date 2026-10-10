@@ -274,7 +274,9 @@ npm run build   # 生产构建
 
 GitHub Pages 只托管静态文件，无项目后端。默认 Mock 支持预录音频、演出与故障注入；启用自定义 AI 服务后，浏览器使用访客填写的地址直连 LLM/STT/TTS。未配置时实际录音会明确提示需要服务，不会伪造转写。自带密钥不随静态构建发布。
 
-`npm run build:preview` 在 `.preview-build/` 内单独生成导出，不包含 API 路由和环境密钥文件，不影响本地完整项目。配置 GitHub CLI HTTPS 登录后，执行 `npm run deploy:preview` 完成检查、构建与发布到 `gh-pages` 产物分支；源码保存在 `main`。GitHub Pages 使用分支发布，源码推送后需再次执行部署命令更新预览。生成目录为 `.preview-build/out`，部署基础路径为 `/rain-cafe`。
+推送到 `main` 后，GitHub Actions 自动执行依赖安装、类型/规范/测试检查、静态构建及 GitHub Pages 部署；也可在 Actions 中手动运行 `Deploy GitHub Pages`。流程见 [.github/workflows/pages.yml](.github/workflows/pages.yml)，部署状态见 [Actions](https://github.com/xiujieGmail/rain-cafe/actions/workflows/pages.yml)。检查或构建失败时不会发布新版本。无需手动推送 `gh-pages`，也无需为部署配置 AI 服务密钥。
+
+`npm run build:preview` 在 `.preview-build/` 内单独生成静态导出，不包含 API 路由和环境密钥文件，不影响本地完整项目。上传目录为 `.preview-build/out`，部署基础路径为 `/rain-cafe`。仓库 Pages 发布来源使用 GitHub Actions；旧 `deploy:preview` 分支发布脚本不再用于自动部署。
 
 关键代码已使用中文 `//` 注释说明轮次失效、资源释放、录音上传、协议校验、播放同步和静态预览边界。
 
