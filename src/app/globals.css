@@ -175,11 +175,7 @@ button { transition: background .2s, border-color .2s, transform .2s; }button:ac
 @media (max-height: 730px) and (max-width: 700px) { .story-intro h1 { font-size: 22px; }.travel-photo { top: 35%; width: 140px; } }
 @media (max-width: 700px) { .experience:has(.travel-photo) .character-caption { visibility: hidden; } }
 
-/* 对话记录默认折叠，保留场景主体；展开后独立滚动，不把输入区推出窗口。 */
-.dialogue-history { margin: 8px 0; border-top: 1px solid #e8bf8e25; color: var(--cream); }
-.dialogue-history summary { display: flex; gap: 8px; align-items: center; padding: 8px 0; cursor: pointer; font-size: 11px; color: var(--muted); }
-.dialogue-history summary span { margin-left: auto; }
-.history-scroll { max-height: min(24vh, 180px); overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px; border-radius: 10px; background: #102032e8; }
+/* 对话消息按角色区分，保留时间和回复状态。 */
 .history-entry { padding: 10px 4px; border-bottom: 1px solid #e8bf8e15; }
 .history-entry header { display: flex; align-items: center; gap: 9px; font-size: 11px; }
 .history-entry time, .history-entry small { color: var(--muted); font-size: 9px; }
@@ -196,3 +192,38 @@ button { transition: background .2s, border-color .2s, transform .2s; }button:ac
 .provider-toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; line-height: 1.6; }
 .provider-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }.provider-actions button { border: 1px solid #e8bf8e50; border-radius: 8px; background: #e8bf8e15; padding: 9px; font-size: 11px; }
 @media (max-width: 700px) { .history-scroll { max-height: 120px; }.provider-field input { font-size: 16px; } }
+
+/* 保留原生下拉的键盘与移动端操作，统一闭合控件、箭头和选项的颜色。 */
+.settings-drawer select { appearance: none; color-scheme: dark; background-color: #152638; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23e8bf8e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; color: var(--cream); border-color: #e8bf8e35; min-height: 46px; padding: 12px 40px 12px 14px; cursor: pointer; }
+.settings-drawer select:hover:not(:disabled) { border-color: #e8bf8e80; }
+.settings-drawer select:disabled { opacity: .5; cursor: not-allowed; }
+.settings-drawer select option { background: #152638; color: var(--cream); }
+.settings-drawer select option:disabled { color: #8793a1; }
+.settings-copy, .setting-note { color: var(--muted); }
+.settings-drawer input:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+@media (max-width: 700px) {
+  .top-actions .mode-badge { display: none; }
+  .settings-drawer select { font-size: 16px; }
+}
+@media (max-width: 360px) { .topbar { padding-left: 16px; padding-right: 16px; }.top-actions { gap: 5px; } }
+
+/* 历史融入原字幕区域，固定高度和轻量排版保留角色与场景的视觉空间。 */
+.conversation-log { position: relative; border: 1px solid #e8bf8e30; border-left: 2px solid #e8bf8e80; border-radius: 2px 10px 10px 2px; background: #142537dc; overflow: hidden; }
+.conversation-scroll { height: 126px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #8a9baa60 transparent; overflow-anchor: none; }
+.conversation-scroll:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+.conversation-messages { padding: 13px 18px 18px; }
+.conversation-messages .history-entry { padding: 0; margin-bottom: 14px; border: 0; background: transparent; }
+.conversation-messages .history-user { padding-left: 28px; }
+.conversation-messages .history-user header { justify-content: flex-end; }
+.conversation-messages .history-user p { text-align: right; color: #bbcbd6; font-size: 12px; }
+.conversation-messages .history-assistant strong { font-family: Georgia, serif; letter-spacing: .08em; font-weight: 400; }
+.conversation-messages .history-entry:last-child { margin-bottom: 0; }
+.conversation-messages .history-entry p { font-size: 14px; line-height: 1.85; margin-top: 6px; }
+.conversation-messages .history-entry time { opacity: .65; }
+.conversation-messages .history-entry small { font-size: 9px; }
+.conversation-messages .subtitle-area { border: 0; background: transparent; box-shadow: none; min-height: 0; padding: 0; }
+.conversation-pending { padding: 6px 0; margin: 0; font-size: 12px; color: var(--muted); }
+.latest-message { position: absolute; bottom: 6px; right: 10px; display: flex; gap: 5px; align-items: center; border-radius: 16px; border: 1px solid #e8bf8e50; background: #253b4f; color: var(--cream); padding: 6px 10px; font-size: 10px; }
+.conversation-scroll-hint { position: absolute; right: 14px; bottom: 4px; font-size: 8px; color: var(--muted); opacity: .7; pointer-events: none; }
+@media (max-width: 700px) { .conversation-scroll { height: 116px; }.conversation-messages { padding: 11px 13px 18px; }.conversation-messages .history-entry p { font-size: 13px; }.conversation-messages .history-user { padding-left: 20px; } }
+@media (max-height: 730px) { .conversation-scroll { height: 100px; } }

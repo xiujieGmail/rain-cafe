@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowUp, Mic, Square, RotateCcw, SlidersHorizontal, X, ChevronRight, Headphones, Sparkles, MessageCircle, Radio, Activity } from 'lucide-react';
 import { SceneStage } from './scene-stage';
 import { ServiceSettings } from './service-settings';
-import { Typewriter } from './typewriter';
+import { ConversationLog } from './conversation-log';
 import { setCustomConfig, type CustomConfig } from '@/lib/custom-services';
 import { useSceneStore } from '@/stores/scene-store';
 import { InteractionEngine } from '@/lib/interaction';
@@ -23,7 +23,7 @@ export function CafeExperience() {
   const [mode, setMode] = useState<'mock' | 'live'>('mock');
   const [liveAvailable, setLiveAvailable] = useState(false);
   const [customEnabled, setCustomEnabled] = useState(false);
-  const [settings, setSettings] = useState(false);
+  const [drawer, setDrawer] = useState<'settings' | null>(null);
   const [fault, setFault] = useState<Fault>('none');
   const [picker, setPicker] = useState(false);
   const [recordingReady, setRecordingReady] = useState(false);
@@ -68,10 +68,12 @@ export function CafeExperience() {
   useEffect(() => () => { if (recordingUrl) URL.revokeObjectURL(recordingUrl); }, [recordingUrl]);
 
   useEffect(() => {
-    if (!settings) return;
+    if (!drawer) return;
+    // 设置打开后聚焦关闭按钮，关闭时返回原入口。
     const previous = document.activeElement as HTMLElement | null;
+    drawerRef.current?.querySelector<HTMLButtonElement>('[data-drawer-close]')?.focus();
     const trap = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setSettings(false); return; }
+      if (event.key === 'Escape') { setDrawer(null); return; }
       if (event.key !== 'Tab') return;
       const items = [...(drawerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, a[href], audio[controls]') || [])].filter(item => item.getClientRects().length > 0);
       const first = items[0], last = items.at(-1);
@@ -80,7 +82,7 @@ export function CafeExperience() {
     };
     document.addEventListener('keydown', trap);
     return () => { document.removeEventListener('keydown', trap); previous?.focus(); };
-  }, [settings]);
+  }, [drawer]);
 
   function stopRecordingUI() {
     recordingRef.current?.cancel();
@@ -183,15 +185,13 @@ export function CafeExperience() {
     <SceneStage />
     <header className="topbar">
       <a className="wordmark" href={assetPath('/')} aria-label="雨隙，雨夜咖啡馆"><span className="brand-mark">雨</span><span>雨隙<small>a moment between the rain</small></span></a>
-      <div className="top-actions"><span className="mode-badge"><i />{mode === 'mock' ? staticPreview ? '在线演示' : '本地演示' : '真实对话'}</span><button className="icon-button" onClick={restart} aria-label="重新开始故事" title="重新开始"><RotateCcw size={18} /></button><button className="icon-button" onClick={() => setSettings(true)} aria-label="打开体验设置" title="体验设置"><SlidersHorizontal size={18} /></button></div>
+      <div className="top-actions"><span className="mode-badge"><i />{mode === 'mock' ? staticPreview ? '在线演示' : '本地演示' : '真实对话'}</span><button className="icon-button" onClick={restart} aria-label="重新开始故事" title="重新开始"><RotateCcw size={18} /></button><button className="icon-button" onClick={() => setDrawer('settings')} aria-label="打开体验设置" title="体验设置"><SlidersHorizontal size={18} /></button></div>
     </header>
     <aside className="story-intro"><p className="eyebrow">第一幕 / 雨夜的偶遇</p><h1>雨声渐慢，<br />故事刚开始。</h1><p>一杯还温热的咖啡，<br />一个等你开口的人。</p><span className="story-coordinate">23:17 &nbsp; / &nbsp; 雨后 · 城市一角</span></aside>
     <div className="character-caption"><span className="tiny-star">✦</span><span>Mira<small>26 岁 · 旅行摄影师</small></span></div>
     <section className="conversation" aria-label="与 Mira 交流">
       <div className={`status-line status-${state.phase}`}><span className="status-orb"><i /><i /><i /></span><span data-testid="phase-label">{phaseNames[state.phase]}</span><span className="status-copy">{phaseCopy[state.phase]}</span>{state.phase === 'speaking' ? <button className="inline-stop" onClick={() => { engine.cancel(); stopRecordingUI(); }}><Square size={11} />停止</button> : null}</div>
-      <div className="subtitle-area" aria-live="polite" aria-atomic="true"><span className="speaker-label">MIRA</span><p data-testid="subtitle">{state.subtitle ? <Typewriter key={state.turnId} text={state.subtitle} /> : (state.phase === 'listening' ? '“ 我在听。 ”' : state.phase === 'thinking' ? '窗外的雨声，填满了片刻的安静。' : '你可以继续这个故事。')}</p></div>
-      {state.userText ? <p className="your-line"><span>你</span>{state.userText}</p> : null}
-      <details className="dialogue-history"><summary><MessageCircle size={13} />查看对话记录 <span>{state.transcript.length}</span></summary><div className="history-scroll" role="log" aria-label="本次对话记录">{state.transcript.length ? state.transcript.map(entry => <article key={entry.id} className={`history-entry history-${entry.role}`}><header><strong>{entry.role === 'user' ? '你' : 'Mira'}</strong><time>{entry.time}</time><small>{({ pending: '进行中', complete: '完成', interrupted: '已打断', failed: '回复失败' })[entry.status]}</small></header><p>{entry.text}</p></article>) : <p className="setting-note">还没有对话。仅在本页保留最近 100 条，重新开始或刷新后清空。</p>}</div></details>
+      <ConversationLog entries={state.transcript} turnId={state.turnId} phase={state.phase} subtitle={state.subtitle} />
       {recordingReady ? <div className="microphone-level" role="status"><span className="level-track"><span style={{ width: `${Math.round(inputLevel * 100)}%` }} /></span><span>{inputLevel > 0.01 ? '已检测到声音' : '等待声音，请检查麦克风'}</span></div> : null}
       {state.error ? <div className="feedback error" role="alert"><span>{state.error}</span>{lastInput.current ? <button onClick={() => send(lastInput.current)}>重试<ChevronRight size={13} /></button> : null}</div> : state.notice ? <p className="feedback" role="status">{state.notice}</p> : null}
       {picker ? <div className="voice-picker" aria-label="模拟语音转写"><div><Radio size={15} /><span>选择模拟转写</span><button className="icon-button" aria-label="取消模拟输入" onClick={() => { engine.cancel(); stopRecordingUI(); }}><X size={16} /></button></div>{mockPrompts.map(prompt => <button key={prompt} onClick={() => { const ticket = listeningRef.current; if (ticket) send(prompt, ticket); }}>{prompt}<ChevronRight size={14} /></button>)}</div> : null}
@@ -206,8 +206,8 @@ export function CafeExperience() {
       <div className="interaction-hint"><span><Headphones size={12} />戴上耳机，听她的故事</span>{mode === 'mock' ? <button onClick={simulateVoice}><Radio size={12} />模拟语音输入</button> : <span>录音时会立即打断她</span>}</div>
     </section>
     <footer className="scene-footer"><span>一次偶遇，无需赶路。</span><span>雨夜咖啡馆 · 第一章</span></footer>
-    {settings ? <div className="drawer-backdrop" onClick={() => setSettings(false)}><section ref={drawerRef} className="settings-drawer" role="dialog" aria-modal="true" aria-label="体验设置" onClick={event => event.stopPropagation()}>
-      <div className="drawer-header"><div><p className="eyebrow">EXPERIENCE</p><h2>体验设置</h2></div><button className="icon-button" onClick={() => setSettings(false)} aria-label="关闭体验设置" autoFocus><X size={21} /></button></div>
+    {drawer ? <div className="drawer-backdrop" onClick={() => setDrawer(null)}><section ref={drawerRef} className="settings-drawer" role="dialog" aria-modal="true" aria-label="体验设置" onClick={event => event.stopPropagation()}>
+      <div className="drawer-header"><div><p className="eyebrow">EXPERIENCE</p><h2>体验设置</h2></div><button className="icon-button" onClick={() => setDrawer(null)} aria-label="关闭侧栏" data-drawer-close><X size={21} /></button></div>
       <p className="settings-copy">这是一段可以被你打断、也可以慢慢继续的故事。</p>
       <label className="setting-label" htmlFor="mode">对话模式</label><select id="mode" value={mode} onChange={event => changeMode(event.target.value as 'mock' | 'live')}><option value="mock">演示 · 剧情与预录语音</option><option value="live" disabled={!liveAvailable && !customEnabled}>真实服务{customEnabled ? ' · 自定义服务' : liveAvailable ? ' · 服务端已配置' : ' · 请先配置'}</option></select>
       <p className="setting-note">{customEnabled ? '已启用自定义服务：录音与对话直接发送至你设置的平台，不经过项目服务器。' : staticPreview ? '在线演示默认使用 Mock；展开自定义 AI 服务并填写配置后，即可体验真实对话与语音。' : mode === 'mock' ? '使用预录语音与剧情规则；实际录音需要 STT 服务。' : '使用服务端 .env.local 配置的模型服务。'}</p>
@@ -219,7 +219,7 @@ export function CafeExperience() {
       <p className="setting-note">照片失败选项配合“看看你的照片？”使用。</p>
       <div className="setting-rule" /><div className="setting-label"><Activity size={15} />互动状态</div><dl className="diagnostic"><div><dt>当前轮次</dt><dd>#{state.turnId}</dd></div><div><dt>剧情节点</dt><dd>{state.story}</dd></div><div><dt>回复到播放</dt><dd>{state.latency === null ? '—' : `${state.latency} ms`}</dd></div><div><dt>表情 / 动作</dt><dd>{state.emotion} / {state.action}</dd></div></dl>
       <details className="trace-list"><summary>查看本次事件记录 <span>{state.traces.length}</span></summary>{state.traces.length ? state.traces.slice().reverse().map(trace => <p key={trace.id}><time>{trace.time}</time><span>#{trace.turnId} {trace.stage}</span></p>) : <p>还没有互动记录。</p>}</details>
-      <button className="drawer-reset" onClick={() => { restart(); setSettings(false); }}><RotateCcw size={16} />重新开始这个夜晚</button>
+      <button className="drawer-reset" onClick={() => { restart(); setDrawer(null); }}><RotateCcw size={16} />重新开始这个夜晚</button>
       <p className="setting-note closing-note"><MessageCircle size={13} />每个回复与演出均属于当前轮次；开始新输入时，旧轮立即失效。</p>
     </section></div> : null}
   </main>;
