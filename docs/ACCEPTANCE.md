@@ -12,3 +12,7 @@
 - 桌面 1440×900 与手机尺寸 390×844 截图见 pages-desktop.png、pages-mobile.png。
 
 尚待验收：真实外部 STT/LLM/TTS、实机麦克风授权与录音打断、人工听音、3–5 分钟完整交流与最终交付录屏。在线 Pages 仅为静态 Mock 演示，不能用于验收后端语音识别或真实模型。
+
+## 公网预览复查
+
+GitHub Pages 部署任务成功：https://github.com/xiujieGmail/rain-cafe/actions/runs/38032964769 。页面、角色图集和照片语音资源返回 HTTP 200。实际浏览器访问 https://xiujiegmail.github.io/rain-cafe/ ，照片回复进入 speaking、照片加载成功，模拟语音输入后进入 listening 并清除旧照片和字幕；没有调用 `/api/`，没有浏览器页面错误。
