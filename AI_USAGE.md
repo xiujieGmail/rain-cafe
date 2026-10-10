@@ -45,3 +45,7 @@ Codex 重绘原有原创 SVG 角色和场景，调整动漫比例、发丝、眼
 在线演示：[雨隙 · 雨夜咖啡馆](https://xiujiegmail.github.io/rain-cafe/)；源码仓库：[xiujieGmail/rain-cafe](https://github.com/xiujieGmail/rain-cafe)。
 
 Codex 补充关键生命周期的中文 `//` 注释，并增加独立静态导出与 GitHub Pages 分支发布脚本。静态演示在浏览器运行 Mock，实际语音服务仍需本地后端配置。类型检查、20 项测试和浏览器验收均为自动化检查，未替代人工听音或真实服务验收。
+
+## 应聘说明与范围披露
+
+Codex 根据用户提供的 JD 截图整理 [岗位匹配与投递说明](docs/JD-MATCH.md)，并在 README 显著位置说明真实服务接入状态。当前未配置并验收真实 LLM / STT / TTS；可重复的 Mock 用于展示交互流程与异常恢复，不作为真实模型上线、ComfyUI 或 Agent 经验的证明。文档中的建议投递描述未代填未经确认的个人贡献。
