@@ -20,8 +20,9 @@ export async function POST(request: Request) {
     }
     // 通过服务端调用模型，携带历史与剧情节点，要求返回结构化角色演出。
     const upstream = await provider('chat/completions', JSON.stringify({
-      model: process.env.LLM_MODEL || 'gpt-4o-mini', response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: `${prompt}\n当前剧情节点：${input.story}` }, ...input.history, { role: 'user', content: input.text }],
+      // 角色短回复限制输出长度，避免长输出增加延迟与调用费用。
+      model: process.env.LLM_MODEL || 'gpt-4o-mini', max_tokens: 512, response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: `${prompt}\n枚举值与资源ID必须原样输出英文标识，不得翻译成中文。照片回复的完整示例：{"text":"当然可以，这是海边车站的照片。","emotion":"wistful","story":"photo","events":[{"on":"speech_start","type":"action","name":"show_camera"},{"on":"speech_start","type":"media","name":"travel_photo"}]}。此示例只用于照片话题，其他话题按白名单选择事件。\n当前剧情节点：${input.story}` }, ...input.history, { role: 'user', content: input.text }],
       temperature: 0.8,
     }), request.signal, 'application/json');
     const data = await upstream.json();
