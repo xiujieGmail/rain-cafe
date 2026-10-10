@@ -1,0 +1,18 @@
+{
+  "width": 500,
+  "height": 700,
+  "columns": 8,
+  "frames": 48,
+  "emotions": [
+    "calm",
+    "guarded",
+    "warm",
+    "wistful"
+  ],
+  "actions": [
+    "idle",
+    "look_window",
+    "show_camera"
+  ],
+  "order": "(((emotion * 3 + action) * 2 + mouth) * 2 + blink)"
+}
